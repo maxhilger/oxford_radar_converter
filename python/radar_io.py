@@ -19,10 +19,12 @@ from radar import load_radar, radar_polar_to_cartesian
 import numpy as np
 import cv2
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, PointCloud2, PointField
+from std_msgs.msg import Header
+import sensor_msgs.point_cloud2 as pc2
 import rospy
 import csv
-from transform import build_se3_transform, so3_to_quaternion
+from transform import build_se3_transform, so3_to_quaternion, euler_to_so3
 from decimal import *
 import geometry_msgs
 import sys, signal
@@ -30,6 +32,7 @@ import rosbag
 from std_msgs.msg import Int32, String
 from tf2_msgs.msg import TFMessage
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Imu
 
 
 
@@ -42,6 +45,61 @@ class BagWriter:
 
   def WriteImage(self,image, stamp, topic):
     self.bag.write(topic, image, stamp)
+  def WritePointCloud(self,image, stamp, topic):
+    pc = []
+    for a_bin in range(image.shape[0]):
+      theta = (float(a_bin + 1) / image.shape[0]) * 2. * np.pi
+      azimuth = image[a_bin,:]
+      for r_bin in range(azimuth.shape[0]):
+        dist = 0.0438 * float(r_bin)
+        intensity = float(azimuth[r_bin])
+        if intensity > 60:
+          p = np.zeros(4)
+          p[0] = dist * np.cos(theta)
+          p[1] = dist * np.sin(theta)
+          p[3] = intensity
+          pc.append(p)
+    header = Header()
+    header.stamp = stamp
+    header.frame_id = "navtech"  # Replace "your_frame_id" with the appropriate frame ID
+
+    fields = [
+        pc2.PointField('x', 0, pc2.PointField.FLOAT32, 1),
+        pc2.PointField('y', 4, pc2.PointField.FLOAT32, 1),
+        pc2.PointField('z', 8, pc2.PointField.FLOAT32, 1),
+        pc2.PointField('intensity', 12, pc2.PointField.FLOAT32, 1)
+    ]
+
+    cloud_msg = pc2.create_cloud(header, fields, pc)
+    self.bag.write(topic, cloud_msg, stamp)
+      
+    '''
+     for (int a_bin = 0; a_bin < cv_ptr->image.rows; a_bin++) {
+        const double theta = (double(a_bin + 1) / cv_ptr->image.rows) * 2. * M_PI;
+        cv::Mat azimuth = cv_ptr->image.row(a_bin);
+        for (int r_bin = 0; r_bin < azimuth.cols; r_bin++) {
+          const double range = radar_range_resolution_ * double(r_bin);
+          const double intensity = double(azimuth.at<uchar>(r_bin));
+          if (intensity > 60) {
+            pcl::PointXYZI p;
+            p.x = range * std::cos(theta);
+            p.y = range * std::sin(theta);
+            p.intensity = intensity;
+            out_pc->push_back(p);
+          }
+        }
+      }
+    '''
+  def WriteIns(self,rpy, stamp, topic):
+    imu_message = Imu()
+    imu_message.header.stamp = stamp
+    imu_message.header.frame_id = "/imu"
+    quat = so3_to_quaternion(euler_to_so3(rpy))
+    imu_message.orientation.w = quat[0]
+    imu_message.orientation.x = quat[1]
+    imu_message.orientation.y = quat[2]
+    imu_message.orientation.z = quat[3]
+    self.bag.write(topic, imu_message, stamp)
   def WriteTf(self,T_tf, stamp):
       tvek = TFMessage()
       tvek.transforms.append(T_tf)

@@ -42,6 +42,10 @@ gt_path = os.path.join(gt_path,'gt/radar_odometry.csv')
 print ("Loading csv at: "+gt_path)
 if not os.path.isfile(gt_path):
     raise IOError("Could not find gt file")
+ins_path = os.path.join(args.dir, os.pardir)
+ins_path = os.path.join(ins_path,'gps/ins.csv')
+if not os.path.isfile(ins_path):
+    raise IOError("Could not find ins file")
 
 # Cartesian Visualsation Setup
 # Resolution of the cartesian form of the radar scan in metres per pixel
@@ -61,12 +65,25 @@ pub_polar = rospy.Publisher('/Navtech/Polar', Image,queue_size=10)
 
 radar_timestamps = np.loadtxt(timestamps_path, delimiter=' ', usecols=[0], dtype=np.int64)
 GtPoseStamps=[]
+InsMessages=[]
 stamp = rospy.Time.now()
 with open(gt_path, newline='') as csv_file: #Read radar csv file
     csv_reader = csv.reader(csv_file, delimiter=',')
     line_count = 0
     for row in csv_reader:
         GtPoseStamps.append(row)
+
+with open(ins_path, newline='') as csv_file: #Read radar csv file
+    csv_reader = csv.reader(csv_file, delimiter=',')
+    line_count = 0
+    for row in csv_reader:
+        InsMessages.append(row)
+
+for i in range(1, len(InsMessages)):
+    curr_row = InsMessages[i]
+    stamp = rospy.Time.from_sec(int(curr_row[0])/1000000)
+    rpy = [float(curr_row[-3]), float(curr_row[-2]), float(curr_row[-1])]
+    bw.WriteIns(rpy, stamp, '/imu')
 
 
 current_frame = 0
@@ -79,19 +96,12 @@ for radar_timestamp in radar_timestamps:
 
     if current_frame == len(GtPoseStamps) :
         break
-    #if current_frame == 240 :
-    #    bw.Close()
-    #    quit()
 
     filename = os.path.join(args.dir, str(radar_timestamp) + '.png')
     if not os.path.isfile(filename):
         raise FileNotFoundError("Could not find radar example: {}".format(filename))
 
     timestamps, azimuths, valid, fft_data, radar_resolution = load_radar(filename)
-
-
-    #cart_img = radar_polar_to_cartesian(azimuths, fft_data, radar_resolution, cart_resolution, cart_pixel_width,
-    #interpolate_crossover)
 
     if current_frame == 0 :
         curr_inc=[0,0,0,0,0,0]
@@ -107,21 +117,6 @@ for radar_timestamp in radar_timestamps:
     #print("scan: ")
     print("stamp: "+str(radar_timestamp))
     print("current_frame: "+str(current_frame))
-    #print("stamp: ")
-    #print(stamp_ros)
-    #print("frame: ")
-    #print(current_frame)
-    #print("par");
-    #print(GtPoseStamps[current_frame])
-
-                # Combine polar and cartesian for visualisation
-                # The raw polar data is resized to the height of the cartesian representation
-    #downsample_rate = 1
-    #fft_data_vis = fft_data[:, ::downsample_rate]
-    #resize_factor = float(cart_img.shape[0]) / float(fft_data_vis.shape[0])
-    #fft_data_vis = cv2.resize(fft_data_vis, (0, 0), None, resize_factor, resize_factor)
-    #print(fft_data_vis)
-    #vis = cv2.hconcat((fft_data_vis, fft_data_vis[:, :10] * 0 + 1, cart_img))
     Tpose,tf_transform = ProcessFrame(curr_inc, Tpose, curr_inc, stamp_ros) ## read input transormation and perform fwdkinematics
 
     fft_data = (255*fft_data)
@@ -129,25 +124,11 @@ for radar_timestamp in radar_timestamps:
 
     height = fft_data.shape[0]
     width = fft_data.shape[1]
-    #channels = fft_data_vis.shape[2]
-    #print('height')
-    #print(height)
-    #print('width')
-    #print(width)
-    #print('channels')
-    #print(channels)
-
-
-    #msg_image_cart = br.cv2_to_imgmsg(cart_img)
     msg_image_polar = br.cv2_to_imgmsg(img_int)
 
     msg_image_polar.header.stamp = stamp_ros
-    #msg_image_cart.header.stamp = stamp_ros
-
-
-    #pub_cart.publish(msg_image_cart)
-#    pub_polar.publish(msg_image_polar)
-    bw.WriteImage(msg_image_polar, stamp_ros, '/Navtech/Polar')
+    #bw.WriteImage(msg_image_polar, stamp_ros, '/Navtech/Polar')
+    bw.WritePointCloud(img_int, stamp_ros, '/Navtech/PointCloud')
     bw.WriteTf(tf_transform, stamp_ros)
                 #   vis = cv2.hconcat( cart_img)
 
