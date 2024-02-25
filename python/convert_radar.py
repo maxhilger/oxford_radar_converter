@@ -83,7 +83,7 @@ for i in range(1, len(InsMessages)):
     curr_row = InsMessages[i]
     stamp = rospy.Time.from_sec(int(curr_row[0])/1000000)
     rpy = [float(curr_row[-3]), float(curr_row[-2]), float(curr_row[-1])]
-    bw.WriteIns(rpy, stamp, '/imu')
+    # bw.WriteIns(rpy, stamp, '/imu')
 
 
 current_frame = 0
