@@ -42,10 +42,12 @@ gt_path = os.path.join(gt_path,'gt/radar_odometry.csv')
 print ("Loading csv at: "+gt_path)
 if not os.path.isfile(gt_path):
     raise IOError("Could not find gt file")
+'''
 ins_path = os.path.join(args.dir, os.pardir)
 ins_path = os.path.join(ins_path,'gps/ins.csv')
 if not os.path.isfile(ins_path):
     raise IOError("Could not find ins file")
+'''
 
 # Cartesian Visualsation Setup
 # Resolution of the cartesian form of the radar scan in metres per pixel
@@ -72,19 +74,20 @@ with open(gt_path, newline='') as csv_file: #Read radar csv file
     line_count = 0
     for row in csv_reader:
         GtPoseStamps.append(row)
-
+'''
 with open(ins_path, newline='') as csv_file: #Read radar csv file
     csv_reader = csv.reader(csv_file, delimiter=',')
     line_count = 0
     for row in csv_reader:
         InsMessages.append(row)
 
+
 for i in range(1, len(InsMessages)):
     curr_row = InsMessages[i]
     stamp = rospy.Time.from_sec(int(curr_row[0])/1000000)
     rpy = [float(curr_row[-3]), float(curr_row[-2]), float(curr_row[-1])]
-    # bw.WriteIns(rpy, stamp, '/imu')
-
+    bw.WriteIns(rpy, stamp, '/imu')
+'''
 
 current_frame = 0
 pose_init = [0,0,0,0,0,0]
